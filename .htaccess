@@ -1,0 +1,11 @@
+# Deny access to lock files
+<FilesMatch "\.lock$">
+    Order Allow,Deny
+    Deny from all
+</FilesMatch>
+
+# Deny access to test files
+<FilesMatch "^(test_)">
+    Order Allow,Deny
+    Deny from all
+</FilesMatch>

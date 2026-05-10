@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>الرئيسية - SWAP</title>
+    <link rel="icon" href="SWAP.jpg" type="image/jpeg">
+    <link rel="stylesheet" href="styles/main.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="js/api.js"></script>
+</head>
+<body>
+    <div id="root"></div>
+    
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+        
+        function DashboardPage() {
+            const [user, setUser] = useState(null);
+            const [myRequest, setMyRequest] = useState(null);
+            const [currentSection, setCurrentSection] = useState('');
+            const [desiredSection, setDesiredSection] = useState('');
+            const [message, setMessage] = useState('');
+            const [loading, setLoading] = useState(false);
+            
+            useEffect(() => {
+                window.API.getSession().then(sessionUser => {
+                    if (!sessionUser) {
+                        window.location.href = '../index.html?loggedout=1';
+                    } else {
+                        setUser(sessionUser);
+                        loadMyRequest(sessionUser.id);
+                    }
+                });
+            }, []);
+            
+            const loadMyRequest = async (userId) => {
+                try {
+                    const result = await window.API.getMyRequest(userId);
+                    if (result.success && result.requests && result.requests.length > 0) {
+                        setMyRequest(result.requests[0]);
+                        setCurrentSection(result.requests[0].current_section);
+                        setDesiredSection(result.requests[0].desired_section);
+                    } else {
+                        setMyRequest(null);
+                        setCurrentSection('');
+                        setDesiredSection('');
+                    }
+                } catch (err) {
+                    console.error('Error loading request:', err);
+                    setMyRequest(null);
+                    setCurrentSection('');
+                    setDesiredSection('');
+                }
+            };
+            
+            const submitRequest = async (e) => {
+                e.preventDefault();
+                setMessage('');
+                setLoading(true);
+                
+                if (currentSection === desiredSection) {
+                    setMessage('لا يمكنك اختيار نفس الشعبة الحالية والشعبة المطلوبة.');
+                    setLoading(false);
+                    return;
+                }
+                
+                try {
+                    const result = await window.API.submitRequest(
+                        user.id, currentSection, desiredSection
+                    );
+                    if (result.success) {
+                        setMessage(result.message);
+                        await loadMyRequest(user.id);
+                    } else {
+                        setMessage(result.message || 'حدث خطأ');
+                    }
+                } catch (err) {
+                    setMessage('حدث خطأ أثناء إرسال الطلب.');
+                }
+                
+                setLoading(false);
+            };
+            
+            const cancelRequest = async () => {
+                if (!myRequest) return;
+                if (!confirm('هل أنت متأكد أنك تريد إلغاء الطلب؟')) {
+                    return;
+                }
+                
+                setLoading(true);
+                
+                try {
+                    const result = await window.API.cancelRequest(myRequest.id, user.id);
+                    if (result.success) {
+                        setMyRequest(null);
+                        setCurrentSection('');
+                        setDesiredSection('');
+                        setMessage('تم إلغاء الطلب بنجاح');
+                    } else {
+                        setMessage(result.message || 'حدث خطأ');
+                    }
+                } catch (err) {
+                    setMessage('حدث خطأ أثناء إلغاء الطلب.');
+                }
+                
+                setLoading(false);
+            };
+            
+            const logout = async () => {
+                await window.API.clearSession();
+                await window.API.logout();
+                window.location.href = '../index.html?logout=1';
+            };
+            
+             if (!user) {
+                 return (
+                     <div className="page auth-page">
+                         <div className="auth-card">
+                             <p>جاري التحميل...</p>
+                         </div>
+                     </div>
+                 );
+             }
+             
+              return (
+              <div className="app">
+                  <header className="header">
+                      <div className="header-content">
+                          <h1 className="logo">SWAP</h1>
+                          <nav className="nav">
+                              <button className="active">الرئيسية</button>
+                              <button onClick={() => window.location.href = 'requests.html'}>الطلبات</button>
+                              <button onClick={() => window.location.href = 'profile.html'}>ملفي</button>
+                              <button onClick={logout}>خروج</button>
+                              <button onClick={() => window.location.href = 'support.html'}>الدعم الفني</button>
+                          </nav>
+                      </div>
+                  </header>
+                  <main className="main">
+                      <div className="welcome-card">
+                          <h2>مرحباً {user.name}</h2>
+                          <p>السنة الدراسية: {getYearName(user.year)}</p>
+                      </div>
+                      <div className="request-card">
+                          <h3>طلب تبديل</h3>
+                          {myRequest ? (
+                                  <div className="current-request">
+                                     <div className="request-info">
+                                         <div className="request-section">
+                                             <span>من (الشعبة الحالية)</span>
+                                             <strong>{myRequest.current_section}</strong>
+                                         </div>
+                                         <div className="arrow">⇄</div>
+                                         <div className="request-section">
+                                             <span>إلى (الشعبة المطلوبة)</span>
+                                             <strong>{myRequest.desired_section}</strong>
+                                         </div>
+                                     </div>
+                                      {(myRequest.status === 'pending' || myRequest.status === 'matched') && (
+                                         <button onClick={cancelRequest} className="btn-danger" disabled={loading}>
+                                             {loading ? 'جاري...' : 'إلغاء الطلب'}
+                                         </button>
+                                     )}
+                                     <div className={`status ${myRequest.status}`}>
+                                         {getStatusName(myRequest.status)}
+                                     </div>
+                                     {myRequest.status === 'matched' && myRequest.match_type === 'binary' && (
+                                         <span style={{color: '#27ae60', fontWeight: '600', marginBottom: '10px', display: 'inline-block'}}>
+                                             ✓ تم التطابق الثنائي
+                                         </span>
+                                     )}
+                                      {myRequest.status === 'matched' && myRequest.match_type === 'triple' && (
+                                          <span style={{color: '#27ae60', fontWeight: '600', marginBottom: '10px', display: 'inline-block'}}>
+                                              ✓ تم التطابق الثلاثي
+                                          </span>
+                                      )}
+
+                                     {myRequest.status === 'completed' && (
+                                         <div style={{marginTop: '10px', fontSize: '0.9rem', color: '#27ae60', fontWeight: '600'}}>
+                                             ✓ تمت عملية التبديل بنجاح
+                                         </div>
+                                     )}
+                                 </div>
+                             ) : (
+                                 <form onSubmit={submitRequest}>
+                                     <div className="form-row">
+                                         <div className="form-group">
+                                             <label>من (الشعبة الحالية)</label>
+                                             <input 
+                                                 type="text" 
+                                                 value={currentSection} 
+                                                 onChange={(e) => setCurrentSection(e.target.value)} 
+                                                 placeholder="مثال: 5" 
+                                                 required 
+                                             />
+                                         </div>
+                                         <div className="form-group">
+                                             <label>إلى (الشعبة المطلوبة)</label>
+                                             <input 
+                                                 type="text" 
+                                                 value={desiredSection} 
+                                                 onChange={(e) => setDesiredSection(e.target.value)} 
+                                                 placeholder="مثال: 10" 
+                                                 required 
+                                             />
+                                         </div>
+                                     </div>
+                                     <button type="submit" className="btn-primary" disabled={loading}>
+                                         {loading ? 'جاري...' : 'تقديم طلب التبديل'}
+                                     </button>
+                                 </form>
+                             )}
+                             {message && <div className="message">{message}</div>}
+                          </div>
+                          <button 
+                              onClick={() => window.location.href = 'requests.html'} 
+                              className="btn-secondary"
+                          >
+                              عرض طلبات التبديل ({getYearName(user.year)})
+                          </button>
+                      </main>
+                  </div>
+              );
+        }
+        
+        function getYearName(year) {
+            const names = ['', 'السنة الأولى', 'السنة الثانية', 'السنة الثالثة', 'السنة الرابعة', 'السنة الخامسة'];
+            return names[year] || year;
+        }
+        
+        function getStatusName(status) {
+            const statusNames = { 
+                pending: 'بانتظار المطابقة', 
+                matched: 'تمت المطابقة', 
+                completed: 'مكتمل' 
+            };
+            return statusNames[status] || status;
+        }
+        
+        ReactDOM.render(<DashboardPage />, document.getElementById('root'));
+    </script>
+</body>
+    
+<footer class="site-footer">
+<p>تم تطوير الموقع بواسطة <span style="color: #4A90D9;">Abdullah Alsarmini</span></p>
+      </footer>
+</html>

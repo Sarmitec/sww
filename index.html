@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>تسجيل الدخول - SWAP</title>
+    <link rel="icon" href="SWAP.jpg" type="image/jpeg">
+    <link rel="stylesheet" href="public/styles/main.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Load API first -->
+    <script src="public/js/api.js?v=2"></script>
+</head>
+<body>
+    <div id="root"></div>
+    
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        function App() {
+            const [isLogin, setIsLogin] = useState(true);
+            const [universityId, setUniversityId] = useState('');
+            const [password, setPassword] = useState('');
+            const [confirmPassword, setConfirmPassword] = useState('');
+            const [name, setName] = useState('');
+            const [year, setYear] = useState('');
+            const [email, setEmail] = useState('');
+            const [error, setError] = useState('');
+            const [loading, setLoading] = useState(false);
+            const [logoutMessage, setLogoutMessage] = useState('');
+
+            useEffect(() => {
+                const urlParams = new URLSearchParams(window.location.search);
+                if (urlParams.get('logout') === '1') {
+                    sessionStorage.removeItem('swap_token');
+                    sessionStorage.removeItem('swap_user_role');
+                    window.API.logout().catch(() => {});
+                    window.history.replaceState({}, document.title, window.location.pathname);
+                    setLogoutMessage('تم تسجيل الخروج بنجاح');
+                    setTimeout(() => setLogoutMessage(''), 5000);
+                }
+            }, []);
+
+            const handleLogin = async (e) => {
+                e.preventDefault();
+                setError('');
+                setLoading(true);
+
+                try {
+                    const result = await window.API.login(universityId, password);
+                    if (result.success) {
+                        window.API.setSession(result.student, result.token);
+                        if (result.student.role === 'admin') {
+                            window.location.href = 'control/admin-panel.html';
+                        } else if (result.student.role === 'owner') {
+                            window.location.href = 'public/owner.html';
+                        } else {
+                            window.location.href = 'public/dashboard.html';
+                        }
+                    } else {
+                        setError(result.message || 'فشل تسجيل الدخول');
+                    }
+                } catch (err) {
+                    setError('حدث خطأ في الاتصال بالخادم');
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const handleRegister = async (e) => {
+                e.preventDefault();
+
+                if (password !== confirmPassword) {
+                    setError('كلمتا المرور غير متطابقتين');
+                    return;
+                }
+
+                if (password.length < 6) {
+                    setError('كلمة المرور يجب أن تكون 6 أحرف على الأقل');
+                    return;
+                }
+
+                if (!/[A-Z]/.test(password)) {
+                    setError('كلمة المرور يجب أن تحتوي على حرف كبير واحد على الأقل');
+                    return;
+                }
+
+                if (!/[0-9]/.test(password)) {
+                    setError('كلمة المرور يجب أن تحتوي على رقم واحد على الأقل');
+                    return;
+                }
+
+                setLoading(true);
+
+                try {
+                    const result = await window.API.register(name, universityId, year, email, password, confirmPassword);
+                    if (result && typeof result === 'object' && 'success' in result) {
+                        if (result.success) {
+                            setIsLogin(true);
+                            alert('تم التسجيل بنجاح! يرجى تسجيل الدخول الآن');
+                            setName('');
+                            setUniversityId('');
+                            setYear('');
+                            setEmail('');
+                            setPassword('');
+                            setConfirmPassword('');
+                        } else {
+                            setError(result.message || 'حدث خطأ في التسجيل');
+                        }
+                    } else {
+                        setError('حدث خطأ في الاتصال بالخادم (الرد غير متوقع)');
+                    }
+                } catch (err) {
+                    setError('حدث خطأ في الاتصال بالخادم');
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            if (isLogin) {
+                return (
+                    <div className="page auth-page">
+                        <div className="auth-card">
+                            <div className="auth-logo">SWAP</div>
+                            {logoutMessage && <div className="success-message">{logoutMessage}</div>}
+                            <h2>تسجيل الدخول</h2>
+                            <form onSubmit={handleLogin}>
+                                <div className="form-group">
+                                    <label>الرقم الجامعي</label>
+                                    <input 
+                                        type="text" 
+                                        value={universityId} 
+                                        onChange={(e) => setUniversityId(e.target.value)} 
+                                        required 
+                                    />
+                                </div>
+                                <div className="form-group">
+                                    <label>كلمة المرور</label>
+                                    <input 
+                                        type="password" 
+                                        value={password} 
+                                        onChange={(e) => setPassword(e.target.value)} 
+                                        required 
+                                    />
+                                </div>
+                                {error && <div className="error">{error}</div>}
+                                <button type="submit" className="btn-primary" disabled={loading}>
+                                    {loading ? 'جاري...' : 'دخول'}
+                                </button>
+                            </form>
+                            <p className="auth-switch">
+                                ليس لديك حساب؟ <button onClick={() => setIsLogin(false)}>سجل الآن</button>
+                            </p>
+                        </div>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="page auth-page">
+                    <div className="auth-card">
+                        <div className="auth-logo">SWAP</div>
+                        {logoutMessage && <div className="success-message">{logoutMessage}</div>}
+                        <h2>إنشاء حساب جديد</h2>
+                        <form onSubmit={handleRegister}>
+                            <div className="form-group">
+                                <label>الاسم الثلاثي</label>
+                                <input 
+                                    type="text" 
+                                    value={name} 
+                                    onChange={(e) => setName(e.target.value)} 
+                                    required 
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label>الرقم الجامعي</label>
+                                <input 
+                                    type="text" 
+                                    value={universityId} 
+                                    onChange={(e) => setUniversityId(e.target.value)} 
+                                    required 
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label>السنة الدراسية</label>
+                                <select value={year} onChange={(e) => setYear(e.target.value)} required>
+                                    <option value="">اختر السنة</option>
+                                    <option value="1">السنة الأولى</option>
+                                    <option value="2">السنة الثانية</option>
+                                    <option value="3">السنة الثالثة</option>
+                                    <option value="4">السنة الرابعة</option>
+                                    <option value="5">السنة الخامسة</option>
+                                </select>
+                            </div>
+                            <div className="form-group">
+                                <label>البريد الإلكتروني</label>
+                                <input 
+                                    type="email" 
+                                    value={email} 
+                                    onChange={(e) => setEmail(e.target.value)} 
+                                    required 
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label>كلمة المرور</label>
+                                <input 
+                                    type="password" 
+                                    value={password} 
+                                    onChange={(e) => setPassword(e.target.value)} 
+                                    required 
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label>تأكيد كلمة المرور</label>
+                                <input 
+                                    type="password" 
+                                    value={confirmPassword} 
+                                    onChange={(e) => setConfirmPassword(e.target.value)} 
+                                    required 
+                                />
+                            </div>
+                            {error && <div className="error">{error}</div>}
+                            <button type="submit" className="btn-primary" disabled={loading}>
+                                {loading ? 'جاري...' : 'تسجيل'}
+                            </button>
+                        </form>
+                        <p className="auth-switch">
+                            لديك حساب؟ <button onClick={() => setIsLogin(true)}>تسجيل الدخول</button>
+                        </p>
+                    </div>
+                </div>
+            );
+        }
+
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+</body>
+<footer class="site-footer">
+<p>تم تطوير الموقع بواسطة <span style="color: #4A90D9;">Abdullah Alsarmini</span></p>
+</footer>
+</html>

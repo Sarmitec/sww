@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ملفي الشخصي - SWAP</title>
+    <link rel="icon" href="SWAP.jpg" type="image/jpeg">
+    <link rel="stylesheet" href="styles/main.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="js/api.js"></script>
+</head>
+<body>
+    <div id="root"></div>
+    
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+        
+        function ProfilePage() {
+            const [user, setUser] = useState(null);
+            const [editMode, setEditMode] = useState(false);
+            const [phone, setPhone] = useState('');
+            const [facebook, setFacebook] = useState('');
+            const [email, setEmail] = useState('');
+            const [profileImage, setProfileImage] = useState('default.png');
+            const [message, setMessage] = useState('');
+            const [loading, setLoading] = useState(false);
+            
+            useEffect(() => {
+                window.API.getSession().then(sessionUser => {
+                    if (!sessionUser) {
+window.location.href = '/SWAP/index.html';
+                    } else {
+                        setUser(sessionUser);
+                        setPhone(sessionUser.phone || '');
+                        setFacebook(sessionUser.facebook || '');
+                        setEmail(sessionUser.email || '');
+                        if (sessionUser.profile_image) {
+                            setProfileImage(sessionUser.profile_image);
+                        }
+                    }
+                });
+            }, []);
+            
+            const handleImageUpload = async (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                
+                setLoading(true);
+                
+                try {
+                    const result = await window.API.uploadProfileImage(user.id, file);
+                    
+                    if (result.success) {
+                        const base64 = await fileToBase64(file);
+                        setProfileImage(base64);
+                        
+                        setMessage('تم رفع الصورة بنجاح');
+                    } else {
+                        setMessage(result.message || 'حدث خطأ في رفع الصورة');
+                    }
+                } catch (err) {
+                    setMessage('حدث خطأ في رفع الصورة');
+                }
+                
+                setLoading(false);
+            };
+            
+            const fileToBase64 = (file) => {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.readAsDataURL(file);
+                    reader.onload = () => resolve(reader.result);
+                    reader.onerror = error => reject(error);
+                });
+            };
+            
+            const saveProfile = async (e) => {
+                e.preventDefault();
+                setLoading(true);
+                setMessage('');
+                
+                try {
+                    const result = await window.API.updateProfile(user.id, phone, facebook, email);
+                    
+                    if (result.success) {
+                        const updatedUser = { ...user, phone, facebook, email };
+                        localStorage.setItem('swap_user', JSON.stringify(updatedUser));
+                        setUser(updatedUser);
+                        setEditMode(false);
+                        setMessage('تم الحفظ بنجاح');
+                    } else {
+                        setMessage(result.message || 'حدث خطأ');
+                    }
+                } catch (err) {
+                    setMessage('حدث خطأ في الاتصال بالخادم');
+                }
+                
+                setLoading(false);
+            };
+            
+            const logout = async () => {
+                await window.API.clearSession();
+                await window.API.logout();
+                window.location.href = '/SWAP/index.html';
+            };
+            
+            if (!user) {
+                return (
+                    <div className="page auth-page">
+                        <div className="auth-card">
+                            <p>جاري التحميل...</p>
+                        </div>
+                    </div>
+                );
+            }
+            
+            const getImageUrl = (img) => {
+                if (!img || img === 'null') return 'uploads/default.png';
+                if (img.startsWith('data:image')) return img;
+                if (img.startsWith('uploads/')) return img;
+                return 'uploads/' + img;
+            };
+            
+            return (
+                <div className="app">
+                    <header className="header">
+                        <div className="header-content">
+                            <h1 className="logo">SWAP</h1>
+                            <nav className="nav">
+                                <button onClick={() => window.location.href = 'dashboard.html'}>الرئيسية</button>
+                                <button onClick={() => window.location.href = 'requests.html'}>الطلبات</button>
+                                <button className="active">ملفي</button>
+                                <button onClick={logout}>خروج</button>
+                                <button onClick={() => window.location.href = 'support.html'}>الدعم الفني</button>
+                            </nav>
+                        </div>
+                    </header>
+                    
+                    <main className="main">
+                        <div className="profile-card">
+                            <div className="profile-image-container">
+                                <img src={getImageUrl(profileImage)} alt="الصورة الشخصية" className="profile-image" />
+                                <label className="image-upload">
+                                    <input type="file" accept="image/*" onChange={handleImageUpload} />
+                                    <span>📷</span>
+                                </label>
+                            </div>
+                            
+                            <div className="profile-info">
+                                <div className="info-row"><span>الاسم:</span><strong>{user.name}</strong></div>
+                                <div className="info-row"><span>الرقم الجامعي:</span><strong>{user.university_id}</strong></div>
+                                <div className="info-row"><span>السنة الدراسية:</span><strong>{getYearName(user.year)}</strong></div>
+                                <div className="info-row"><span>البريد الإلكتروني:</span><strong>{user.email}</strong></div>
+                            </div>
+                            
+                            <h3 className="section-title">معلومات التواصل</h3>
+                            
+                            {editMode ? (
+                                <form onSubmit={saveProfile} className="edit-form">
+                                    <div className="form-group">
+                                        <label>رقم الهاتف</label>
+                                        <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="01123456789" />
+                                    </div>
+                                    <div className="form-group">
+                                        <label>حساب الفيسبوك</label>
+                                        <input type="text" value={facebook} onChange={(e) => setFacebook(e.target.value)} placeholder="رابط الحساب" />
+                                    </div>
+                                    <div className="form-group">
+                                        <label>بريد إلكتروني بديل</label>
+                                        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@example.com" />
+                                    </div>
+                                    <div className="form-buttons">
+                                        <button type="submit" className="btn-primary" disabled={loading}>
+                                            {loading ? 'جاري...' : 'حفظ'}
+                                        </button>
+                                        <button type="button" onClick={() => setEditMode(false)} className="btn-secondary">إلغاء</button>
+                                    </div>
+                                </form>
+                            ) : (
+                                <div className="contact-info">
+                                    {user.phone ? (
+                                        <div className="info-row"><span>الهاتف:</span><a href={`tel:${user.phone}`}>{user.phone}</a></div>
+                                    ) : (
+                                        <div className="info-row empty"><span>الهاتف:</span><em>لم يُضف بعد</em></div>
+                                    )}
+                                    {user.facebook ? (
+                                        <div className="info-row"><span>فيسبوك:</span><a href={user.facebook} target="_blank">{user.facebook}</a></div>
+                                    ) : (
+                                        <div className="info-row empty"><span>فيسبوك:</span><em>لم يُضف بعد</em></div>
+                                    )}
+                                    <button onClick={() => setEditMode(true)} className="btn-primary">تعديل البيانات</button>
+                                </div>
+                            )}
+                            
+                            {message && <div className="message">{message}</div>}
+                        </div>
+                    </main>
+                </div>
+            );
+        }
+        
+        function getYearName(year) {
+            const names = ['', 'الأولى', 'الثانية', 'الثالثة', 'الرابعة', 'الخامسة'];
+            return names[year] || year;
+        }
+        
+        ReactDOM.render(<ProfilePage />, document.getElementById('root'));
+    </script>
+</body>
+    
+<footer class="site-footer">
+<p>تم تطوير الموقع بواسطة <span style="color: #4A90D9;">Abdullah Alsarmini</span></p>
+     </footer>
+</html>

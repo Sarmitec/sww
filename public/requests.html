@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>طلبات التبديل - SWAP</title>
+    <link rel="icon" href="SWAP.jpg" type="image/jpeg">
+    <link rel="stylesheet" href="styles/main.css?v=10">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="js/react.production.min.js"></script>
+    <script src="js/react-dom.production.min.js"></script>
+    <script src="js/babel.min.js"></script>
+    <script src="js/api.js"></script>
+</head>
+<body>
+    <div id="root"></div>
+    
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+        
+         function RequestsPage() {
+            const [user, setUser] = useState(null);
+            const [loading, setLoading] = useState(true);
+            const [pendingRequests, setPendingRequests] = useState([]);
+            const [matchedGroups, setMatchedGroups] = useState([]);
+            const [noPartnerStudents, setNoPartnerStudents] = useState([]);
+            const [myRequest, setMyRequest] = useState(null);
+            const [cancelLoading, setCancelLoading] = useState(false);
+            
+            useEffect(() => {
+                (async () => {
+                    const sessionUser = await window.API.getSession();
+                    if (!sessionUser) {
+                        window.location.href = '../index.html';
+                    } else {
+                        setUser(sessionUser);
+                        loadRequests(sessionUser.year);
+                        // جلب طلب الطالب الحالي
+                        const myReqResult = await window.API.getMyRequest(sessionUser.id);
+                        if (myReqResult.success && myReqResult.requests && myReqResult.requests.length > 0) {
+                            setMyRequest(myReqResult.requests[0]);
+                        } else {
+                            setMyRequest(null);
+                        }
+                    }
+                })();
+            }, []);
+            
+          const loadRequests = async (userYear) => {
+             setLoading(true);
+             try {
+                 const result = await window.API.getRequests(userYear);
+                 
+                 if (result.success) {
+                     const matched = result.matched || [];
+                     const { groups, noPartnerStudents } = groupMatchedPairs(matched);
+                     
+                     setMatchedGroups(groups);
+                     setNoPartnerStudents(noPartnerStudents);
+                     
+                     // دمج الطلاب الذين ليس لديهم شريك مع قائمة الانتظار المعلقة
+                     const pendingWithNoPartner = [...(result.pending || []), ...noPartnerStudents];
+                     setPendingRequests(pendingWithNoPartner);
+                 }
+             } catch (err) {
+                 console.error('Error loading requests:', err);
+             }
+             setLoading(false);
+         };
+             
+             const viewContact = (studentId) => {
+                 window.location.href = `contact.html?student_id=${studentId}`;
+             };
+             
+            const findStudentId = (studentName) => {
+                // Find student from pending lists
+                let student = pendingRequests.find(s => s.name === studentName);
+                if (student) {
+                    viewContact(student.student_id);
+                    return;
+                }
+                
+                // Find student from matched groups
+                for (const group of matchedGroups) {
+                    if (group.type === 'binary') {
+                        if (group.student1.name === studentName) {
+                            viewContact(group.student1.student_id);
+                            return;
+                        }
+                        if (group.student2 && group.student2.name === studentName) {
+                            viewContact(group.student2.student_id);
+                            return;
+                        }
+                    } else if (group.type === 'triple') {
+                        for (const student of group.students) {
+                            if (student.name === studentName) {
+                                viewContact(student.student_id);
+                                return;
+                            }
+                        }
+                    }
+                }
+            };
+             
+             const logout = async () => {
+                 await window.API.clearSession();
+                 await window.API.logout();
+                 window.location.href = '../index.html?logout=1';
+             };
+ 
+             // إلغاء الطلب الحالي
+             const handleCancelMyRequest = async () => {
+                 if (!myRequest) return;
+                 if (!window.confirm('هل أنت متأكد أنك تريد إلغاء طلبك الحالي؟')) return;
+                 setCancelLoading(true);
+                 try {
+                     const result = await window.API.cancelRequest(myRequest.id, user.id);
+                     if (result.success) {
+                         setMyRequest(null);
+                         // إعادة تحميل الطلبات
+                         loadRequests(user.year);
+                     } else {
+                         alert(result.message || 'حدث خطأ أثناء الإلغاء');
+                     }
+                 } catch (err) {
+                     alert('حدث خطأ أثناء الإلغاء');
+                 }
+                 setCancelLoading(false);
+             };
+             
+             if (!user) {
+                 return (
+                     <div className="page auth-page">
+                         <div className="auth-card">
+                             <p>جاري التحميل...</p>
+                         </div>
+                     </div>
+                 );
+             }
+             
+             return (
+                 <div className="app">
+                     <header className="header">
+                         <div className="header-content">
+                             <h1 className="logo">SWAP</h1>
+                             <nav className="nav">
+                                 <button onClick={() => window.location.href = 'dashboard.html'}>الرئيسية</button>
+                                 <button className="active">الطلبات</button>
+                                 <button onClick={() => window.location.href = 'profile.html'}>ملفي</button>
+                                 <button onClick={logout}>خروج</button>
+                                 <button onClick={() => window.location.href = 'support.html'}>الدعم الفني</button>
+                             </nav>
+                         </div>
+                     </header>
+                     <main className="main">
+                         <h2>طلبات تبديل ({getYearName(user.year)})</h2>
+                         {/* جدول التطابق */}
+                         {matchedGroups.length > 0 && (
+                             <div className="matched-section">
+                                 <h3>✓ التطابقات</h3>
+                                 <div className="matched-table">
+                                     {matchedGroups.map((group, index) => (
+                                         <div key={index} className="matched-row">
+                                             {group.type === 'binary' ? (
+                                                 <div className="binary-container">
+                                                     <div className={`binary-box${group.student1.student_id === user.id ? ' highlight-request' : ''}`}>
+                                                         <button onClick={() => viewContact(group.student1.student_id)} className="student-name">
+                                                             {group.student1.name}
+                                                         </button>
+                                                         <div className="section-arrows">
+                                                             <span className="section-num current">{group.student1.current_section}</span>
+                                                             <span className="arrow-h">←</span>
+                                                             <span className="section-num desired">{group.student1.desired_section}</span>
+                                                         </div>
+                                                     </div>
+                                                     <div className="swap-arrows">
+                                                         <span className="arrow-left">←</span>
+                                                         <span className="arrow-right">→</span>
+                                                     </div>
+                                                     <div className={`binary-box${group.student2 && group.student2.student_id === user.id ? ' highlight-request' : ''}`}> 
+                                                         {group.student2 ? (
+                                                             <>
+                                                                 <button onClick={() => viewContact(group.student2.student_id)} className="student-name">
+                                                                     {group.student2.name}
+                                                                 </button>
+                                                                 <div className="section-arrows">
+                                                                     <span className="section-num current">{group.student2.current_section}</span>
+                                                                     <span className="arrow-h">←</span>
+                                                                     <span className="section-num desired">{group.student2.desired_section}</span>
+                                                                 </div>
+                                                             </>
+                                                         ) : (
+                                                             <div className="no-partner">
+                                                                 <p>بانتظار شريك</p>
+                                                             </div>
+                                                         )}
+                                                     </div>
+                                                 </div>
+                                             ) : group.type === 'triple' ? (
+                                                 <div className="binary-container">
+                                                     {group.students.map((s, idx) => (
+                                                         <React.Fragment key={idx}>
+                                                             <div className={`binary-box${s.student_id === user.id ? ' highlight-request' : ''}`}>
+                                                                 <button onClick={() => viewContact(s.student_id)} className="student-name">
+                                                                     {s.name}
+                                                                 </button>
+                                                                 <div className="section-arrows">
+                                                                     <span className="section-num current">{s.current_section}</span>
+                                                                     <span className="arrow-h">←</span>
+                                                                     <span className="section-num desired">{s.desired_section}</span>
+                                                                 </div>
+                                                             </div>
+                                                             {idx < group.students.length - 1 && (
+                                                                 <div className="swap-arrows">
+                                                                     <span className="arrow-left">←</span>
+                                                                     <span className="arrow-right">→</span>
+                                                                 </div>
+                                                             )}
+                                                         </React.Fragment>
+                                                     ))}
+                                                 </div>
+                                             ) : null}
+                                         </div>
+                                     ))}
+                                 </div>
+                             </div>
+                         )}
+                         {/* جدول الانتظار */}
+                         <h3>قيد الانتظار</h3>
+                         {loading ? (
+                             <div className="loading">جاري التحميل...</div>
+                         ) : pendingRequests.length === 0 ? (
+                             <div className="empty">لا توجد طلبات تبديل حالياً</div>
+                         ) : (
+                             <div className="requests-table">
+                                 {pendingRequests.map((req) => (
+                                     <div key={req.id} className={`table-row${req.student_id === user.id ? ' highlight-request' : ''}`}>
+                                         <div>
+                                             <button onClick={() => viewContact(req.student_id)} className="student-name">
+                                                 {req.name}
+                                             </button>
+                                         </div>
+                                         <div className="section">{req.current_section}</div>
+                                         <div className="arrow">←</div>
+                                         <div className="section">{req.desired_section}</div>
+                                         <div className={`status ${req.status}`}>{getStatusName(req.status)}</div>
+                                     </div>
+                                 ))}
+                             </div>
+                         )}
+                     </main>
+                 </div>
+             );
+         }
+         
+         function getYearName(year) {
+             const names = ['', 'السنة الأولى', 'السنة الثانية', 'السنة الثالثة', 'السنة الرابعة', 'السنة الخامسة'];
+             return names[year] || year;
+         }
+         
+          function getStatusName(status) {
+             const statusNames = { pending: 'بانتظار المطابقة', matched: 'تمت المطابقة', completed: 'مكتمل' };
+             return statusNames[status] || status;
+         }
+         
+          function groupMatchedPairs(pairs) {
+             const groups = [];
+             const used = new Set();
+             const noPartnerStudents = [];
+             
+             for (let i = 0; i < pairs.length; i++) {
+                 if (used.has(i)) continue;
+                 
+                 const pair = pairs[i];
+                 if (pair.match_type === 'triple' && pair.triple_with) {
+                     const tripleIds = [pair.student_id, ...pair.triple_with];
+                     const tripleStudents = [pair];
+                     
+                     for (let j = 0; j < pairs.length; j++) {
+                         if (i !== j && tripleIds.includes(pairs[j].student_id)) {
+                             tripleStudents.push(pairs[j]);
+                             used.add(j);
+                         }
+                     }
+                     
+                     if (tripleStudents.length === 3) {
+                         groups.push({ type: 'triple', students: tripleStudents });
+                         used.add(i);
+                     }
+                 } else if (!used.has(i)) {
+                     const partnerIndex = pairs.findIndex((p, j) => 
+                         !used.has(j) && 
+                         j !== i && 
+                         p.current_section === pair.desired_section && 
+                         p.desired_section === pair.current_section
+                     );
+                     
+                     if (partnerIndex !== -1) {
+                         groups.push({ 
+                             type: 'binary', 
+                             student1: pair, 
+                             student2: pairs[partnerIndex] 
+                         });
+                         used.add(i);
+                         used.add(partnerIndex);
+                     } else {
+                         // الطالب ليس لديه شريك، نضيفه للعرض في قائمة الانتظار
+                         noPartnerStudents.push(pair);
+                         used.add(i);
+                     }
+                 }
+             }
+             
+             return { groups, noPartnerStudents };
+         }
+         
+         ReactDOM.render(<RequestsPage />, document.getElementById('root'));
+     </script>
+ </body>
+     
+<footer class="site-footer">
+<p>تم تطوير الموقع بواسطة <span style="color: #4A90D9;">Abdullah Alsarmini</span></p>
+      </footer>
+ </html>

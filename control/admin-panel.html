@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>لوحة التحكم - الأدمن</title>
+    <link rel="stylesheet" href="styles/main.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="js/admin-api.js"></script>
+</head>
+<body>
+    <div id="root"></div>
+    
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+        
+        function AdminPanel() {
+            const [user, setUser] = useState(null);
+            const [loading, setLoading] = useState(true);
+            const [selectedYear, setSelectedYear] = useState('all');
+            const [activeTab, setActiveTab] = useState('dashboard');
+            const [stats, setStats] = useState(null);
+            const [students, setStudents] = useState([]);
+            const [requests, setRequests] = useState([]);
+            const [logs, setLogs] = useState([]);
+            const [searchTerm, setSearchTerm] = useState('');
+            const [message, setMessage] = useState('');
+            
+            useEffect(() => {
+                checkAuth();
+            }, []);
+            
+            useEffect(() => {
+                if (user) {
+                    loadData();
+                }
+            }, [user, selectedYear]);
+            
+            const checkAuth = async () => {
+                try {
+                    const result = await window.API.getSession();
+                    if (!result || result.role !== 'admin') {
+                        window.location.href = '/SWAP/index.html';
+                    } else {
+                        setUser(result);
+                    }
+                } catch (err) {
+                    window.location.href = '/SWAP/index.html';
+                }
+                setLoading(false);
+            };
+            
+            const loadData = async () => {
+                await Promise.all([
+                    loadStats(),
+                    loadStudents(),
+                    loadRequests(),
+                    loadLogs()
+                ]);
+            };
+            
+            const loadStats = async () => {
+                try {
+                    const year = selectedYear === 'all' ? null : selectedYear;
+                    const result = await window.API.getAdminStats(year);
+                    if (result.success) {
+                        setStats(result.stats);
+                    }
+                } catch (err) {
+                    console.error('Error loading stats:', err);
+                }
+            };
+            
+            const loadStudents = async () => {
+                try {
+                    const year = selectedYear === 'all' ? null : selectedYear;
+                    const result = await window.API.getAdminStudents(year);
+                    if (result.success) {
+                        setStudents(result.students || []);
+                    }
+                } catch (err) {
+                    console.error('Error loading students:', err);
+                }
+            };
+            
+            const loadRequests = async () => {
+                try {
+                    const year = selectedYear === 'all' ? null : selectedYear;
+                    const result = await window.API.getAdminRequests(year);
+                    if (result.success) {
+                        setRequests(result.requests || []);
+                    }
+                } catch (err) {
+                    console.error('Error loading requests:', err);
+                }
+            };
+            
+            const loadLogs = async () => {
+                try {
+                    const result = await window.API.getAdminLogs(selectedYear === 'all' ? null : selectedYear);
+                    if (result.success) {
+                        setLogs(result.logs || []);
+                    }
+                } catch (err) {
+                    console.error('Error loading logs:', err);
+                }
+            };
+            
+            const deleteStudent = async (studentId) => {
+                if (!confirm('هل أنت متأكد من حذف هذا الطالب؟')) return;
+                
+                try {
+                    const result = await window.API.deleteStudent(studentId);
+                    if (result.success) {
+                        setMessage('تم حذف الطالب بنجاح');
+                        loadData();
+                    } else {
+                        setMessage(result.message || 'حدث خطأ');
+                    }
+                } catch (err) {
+                    setMessage('حدث خطأ في الاتصال');
+                }
+            };
+            
+            const deleteRequest = async (requestId) => {
+                if (!confirm('هل أنت متأكد من حذف هذا الطلب؟')) return;
+                
+                try {
+                    const result = await window.API.deleteRequest(requestId);
+                    if (result.success) {
+                        setMessage('تم حذف الطلب بنجاح');
+                        loadData();
+                    } else {
+                        setMessage(result.message || 'حدث خطأ');
+                    }
+                } catch (err) {
+                    setMessage('حدث خطأ في الاتصال');
+                }
+            };
+            
+            const updateRequestStatus = async (requestId, status) => {
+                try {
+                    const result = await window.API.updateRequestStatus(requestId, status);
+                    if (result.success) {
+                        setMessage('تم تحديث الحالة');
+                        loadData();
+                    } else {
+                        setMessage(result.message || 'حدث خطأ');
+                    }
+                } catch (err) {
+                    setMessage('حدث خطأ في الاتصال');
+                }
+            };
+            
+            const logout = async () => {
+                await window.API.clearSession();
+                window.location.href = '/SWAP/index.html';
+            };
+            
+            const filteredStudents = students.filter(s => 
+                s.name.includes(searchTerm) || 
+                s.university_id.includes(searchTerm)
+            );
+            
+            const filteredRequests = requests.filter(r => 
+                r.name.includes(searchTerm)
+            );
+            
+            if (loading) {
+                return (
+                    <div className="admin-loading">
+                        <div className="spinner"></div>
+                        <p>جاري التحميل...</p>
+                    </div>
+                );
+            }
+            
+            return (
+                <div className="admin-panel">
+                    <aside className="admin-sidebar">
+                        <div className="admin-logo">
+                            <span>⚙️</span> لوحة التحكم
+                        </div>
+                        <nav className="admin-nav">
+                            <button 
+                                className={activeTab === 'dashboard' ? 'active' : ''}
+                                onClick={() => setActiveTab('dashboard')}
+                            >
+                                📊 الإحصائيات
+                            </button>
+                            <button 
+                                className={activeTab === 'students' ? 'active' : ''}
+                                onClick={() => setActiveTab('students')}
+                            >
+                                👥 الطلاب
+                            </button>
+                            <button 
+                                className={activeTab === 'requests' ? 'active' : ''}
+                                onClick={() => setActiveTab('requests')}
+                            >
+                                🔄 الطلبات
+                            </button>
+                            <button 
+                                className={activeTab === 'logs' ? 'active' : ''}
+                                onClick={() => setActiveTab('logs')}
+                            >
+                                📋 السجلات
+                            </button>
+                            <button 
+                                className="logout-btn"
+                                onClick={logout}
+                            >
+                                🚪 خروج
+                            </button>
+                        </nav>
+                    </aside>
+                    
+                    <main className="admin-main">
+                        <header className="admin-header">
+                            <div className="year-filter">
+                                <label>السنة الدراسية:</label>
+                                <select 
+                                    value={selectedYear} 
+                                    onChange={(e) => setSelectedYear(e.target.value)}
+                                >
+                                    <option value="all">كل السنوات</option>
+                                    <option value="1">السنة الأولى</option>
+                                    <option value="2">السنة الثانية</option>
+                                    <option value="3">السنة الثالثة</option>
+                                    <option value="4">السنة الرابعة</option>
+                                    <option value="5">السنة الخامسة</option>
+                                </select>
+                            </div>
+                            <div className="admin-user">
+                                مرحباً، {user?.name}
+                            </div>
+                        </header>
+                        
+                        {message && (
+                            <div className="admin-message">{message}</div>
+                        )}
+                        
+                        {activeTab === 'dashboard' && stats && (
+                            <div className="admin-content">
+                                <h2>📊 الإحصائيات</h2>
+                                <div className="stats-grid">
+                                    <div className="stat-card total">
+                                        <div className="stat-icon">👥</div>
+                                        <div className="stat-value">{stats.totalStudents}</div>
+                                        <div className="stat-label">إجمالي الطلاب</div>
+                                    </div>
+                                    <div className="stat-card">
+                                        <div className="stat-icon">📝</div>
+                                        <div className="stat-value">{stats.totalRequests}</div>
+                                        <div className="stat-label">إجمالي الطلبات</div>
+                                    </div>
+                                    <div className="stat-card pending">
+                                        <div className="stat-icon">⏳</div>
+                                        <div className="stat-value">{stats.pendingRequests}</div>
+                                        <div className="stat-label">قيد الانتظار</div>
+                                    </div>
+                                    <div className="stat-card matched">
+                                        <div className="stat-icon">✓</div>
+                                        <div className="stat-value">{stats.matchedRequests}</div>
+                                        <div className="stat-label">تم التطابق</div>
+                                    </div>
+                                </div>
+                                
+                                <div className="stats-by-year">
+                                    <h3>📈 الإحصائيات حسب السنة</h3>
+                                    <div className="year-stats">
+                                        {[1,2,3,4,5].map(y => (
+                                            <div key={y} className="year-stat">
+                                                <span className="year-name">{getYearName(y)}</span>
+                                                <div className="year-bars">
+                                                    <div className="bar-group">
+                                                        <span className="bar-label">طلاب</span>
+                                                        <div className="bar">
+                                                            <div className="bar-fill students" style={{width: `${(stats.byYear[y]?.students || 0) / stats.totalStudents * 100}%`}}></div>
+                                                        </div>
+                                                        <span className="bar-value">{stats.byYear[y]?.students || 0}</span>
+                                                    </div>
+                                                    <div className="bar-group">
+                                                        <span className="bar-label">طلبات</span>
+                                                        <div className="bar">
+                                                            <div className="bar-fill requests" style={{width: `${(stats.byYear[y]?.requests || 0) / stats.totalRequests * 100}%`}}></div>
+                                                        </div>
+                                                        <span className="bar-value">{stats.byYear[y]?.requests || 0}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                        
+                        {activeTab === 'students' && (
+                            <div className="admin-content">
+                                <h2>👥 إدارة الطلاب</h2>
+                                <div className="search-box">
+                                    <input 
+                                        type="text" 
+                                        placeholder="بحث بالاسم أو الرقم الجامعي..."
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                    />
+                                </div>
+                                <div className="table-container">
+                                    <table className="admin-table">
+                                        <thead>
+                                            <tr>
+                                                <th>#</th>
+                                                <th>الاسم</th>
+                                                <th>الرقم الجامعي</th>
+                                                <th>السنة</th>
+                                                <th>البريد</th>
+                                                <th>تاريخ التسجيل</th>
+                                                <th>إجراءات</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {filteredStudents.map((s, i) => (
+                                                <tr key={s.id}>
+                                                    <td>{i + 1}</td>
+                                                    <td>{s.name}</td>
+                                                    <td>{s.university_id}</td>
+                                                    <td>{getYearName(s.year)}</td>
+                                                    <td>{s.email}</td>
+                                                    <td>{s.created_at}</td>
+                                                    <td>
+                                                        <button 
+                                                            className="btn-delete"
+                                                            onClick={() => deleteStudent(s.id)}
+                                                        >
+                                                            🗑️ حذف
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                    {filteredStudents.length === 0 && (
+                                        <div className="empty-state">لا يوجد طلاب</div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                        
+                        {activeTab === 'requests' && (
+                            <div className="admin-content">
+                                <h2>🔄 إدارة الطلبات</h2>
+                                <div className="search-box">
+                                    <input 
+                                        type="text" 
+                                        placeholder="بحث بالاسم..."
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                    />
+                                </div>
+                                <div className="requests-grid">
+                                    {filteredRequests.map(r => (
+                                        <div key={r.id} className="request-card-admin">
+                                            <div className="request-header">
+                                                <span className={`status-badge ${r.status}`}>{getStatusName(r.status)}</span>
+                                                <span className="request-date">{r.request_date}</span>
+                                            </div>
+                                            <div className="request-student">
+                                                <strong>{r.name}</strong>
+                                                <span>{r.university_id}</span>
+                                            </div>
+                                            <div className="request-sections">
+                                                <span className="current">{r.current_section}</span>
+                                                <span className="arrow">⇄</span>
+                                                <span className="desired">{r.desired_section}</span>
+                                            </div>
+                                            <div className="request-actions">
+                                                {r.status === 'pending' && (
+                                                    <button 
+                                                        className="btn-match"
+                                                        onClick={() => updateRequestStatus(r.id, 'matched')}
+                                                    >
+                                                        ✓ جعل متطابق
+                                                    </button>
+                                                )}
+                                                <button 
+                                                    className="btn-delete"
+                                                    onClick={() => deleteRequest(r.id)}
+                                                >
+                                                    🗑️ حذف
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                    {filteredRequests.length === 0 && (
+                                        <div className="empty-state">لا يوجد طلبات</div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                        
+                        {activeTab === 'logs' && (
+                            <div className="admin-content">
+                                <h2>📋 سجلات النشاط</h2>
+                                <div className="logs-container">
+                                    {logs.map((log, i) => (
+                                        <div key={i} className="log-item">
+                                            <span className="log-time">{log.created_at}</span>
+                                            <span className="log-action">{log.action}</span>
+                                            <span className="log-details">{JSON.stringify(log.details)}</span>
+                                        </div>
+                                    ))}
+                                    {logs.length === 0 && (
+                                        <div className="empty-state">لا يوجد سجلات</div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                    </main>
+                </div>
+            );
+        }
+        
+        function getYearName(year) {
+            const names = ['', 'الأولى', 'الثانية', 'الثالثة', 'الرابعة', 'الخامسة'];
+            return names[year] || year;
+        }
+        
+        function getStatusName(status) {
+            const names = { 
+                pending: 'قيد الانتظار', 
+                matched: 'تم التطابق', 
+                completed: 'مكتمل' 
+            };
+            return names[status] || status;
+        }
+        
+        ReactDOM.render(<AdminPanel />, document.getElementById('root'));
+    </script>
+</body>
+</html>

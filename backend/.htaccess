@@ -1,0 +1,21 @@
+# Allow access to PHP endpoints
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    
+    # Allow existing files and directories
+    RewriteCond %{REQUEST_FILENAME} -f [OR]
+    RewriteCond %{REQUEST_FILENAME} -d
+    RewriteRule ^ - [L]
+    
+    # All other requests go through (for API routing if needed)
+    RewriteRule ^ api.php [L]
+</IfModule>
+
+# Deny sensitive files
+<FilesMatch "\.lock$">
+    Order Allow,Deny
+    Deny from all
+</FilesMatch>
+
+# Prevent directory listing
+Options -Indexes

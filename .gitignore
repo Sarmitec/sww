@@ -1,0 +1,6 @@
+﻿backend/*.lock
+logs/
+*.log
+public/uploads/
+Thumbs.db
+.DS_Store

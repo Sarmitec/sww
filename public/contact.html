@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>معلومات التواصل - SWAP</title>
+    <link rel="icon" href="SWAP.jpg" type="image/jpeg">
+    <link rel="stylesheet" href="styles/main.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="js/api.js"></script>
+</head>
+<body>
+    <div id="root"></div>
+    
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+        
+        function ContactPage() {
+            const [student, setStudent] = useState(null);
+            const [loading, setLoading] = useState(true);
+            const [error, setError] = useState(false);
+            
+            useEffect(() => {
+                const params = new URLSearchParams(window.location.search);
+                const studentId = params.get('student_id');
+                
+                if (studentId) {
+                    loadStudent(studentId);
+                } else {
+                    setError(true);
+                    setLoading(false);
+                }
+            }, []);
+            
+            const loadStudent = async (studentId) => {
+                try {
+                    const result = await window.API.getContact(parseInt(studentId));
+                    
+                    if (result.success && result.student) {
+                        setStudent(result.student);
+                    } else {
+                        setError(true);
+                    }
+                } catch (err) {
+                    console.error('Error loading student:', err);
+                    setError(true);
+                }
+                setLoading(false);
+            };
+            
+            const goBack = () => {
+                window.history.back();
+            };
+            
+            if (loading) {
+                return (
+                    <div className="page loading-page">
+                        <div className="loading">جاري التحميل...</div>
+                    </div>
+                );
+            }
+            
+            if (error || !student) {
+                return (
+                    <div className="app">
+                        <header className="header">
+                            <div className="header-content">
+                                <h1 className="logo">SWAP</h1>
+                            </div>
+                        </header>
+                        <main className="main">
+                            <div className="error">الطالب غير موجود</div>
+                            <button onClick={goBack} className="btn-secondary">العودة</button>
+                        </main>
+                    </div>
+                );
+            }
+            
+            const getImageUrl = (img) => {
+                if (!img || img === 'default.png') return 'uploads/default.png';
+                if (img.startsWith('data:image')) return img;
+                return 'uploads/' + img;
+            };
+            
+            return (
+                <div className="app">
+                    <header className="header">
+                        <div className="header-content">
+                            <h1 className="logo">SWAP</h1>
+                        </div>
+                    </header>
+                    
+                    <main className="main">
+                        <button onClick={goBack} className="btn-back">← العودة</button>
+                        
+                        <div className="contact-card">
+                            <img src={getImageUrl(student.profile_image)} alt={student.name} className="contact-image" />
+                            <h2>{student.name}</h2>
+                            <p className="university-id">{student.university_id}</p>
+                            
+                            <div className="contact-methods">
+                                {student.phone && (
+                                    <a href={`tel:${student.phone}`} className="contact-btn">
+                                        📞 {student.phone}
+                                    </a>
+                                )}
+                                <a href={`mailto:${student.email}`} className="contact-btn">
+                                    ✉️ {student.email}
+                                </a>
+                                {student.facebook && (
+                                    <a href={student.facebook} target="_blank" rel="noopener" className="contact-btn">
+                                        📘 فيسبوك
+                                    </a>
+                                )}
+                            </div>
+                        </div>
+                    </main>
+                </div>
+            );
+        }
+        
+        ReactDOM.render(<ContactPage />, document.getElementById('root'));
+    </script>
+</body>
+    
+    <footer class="site-footer">
+        <p>تم تطوير الموقع بواسطة <span style="color: #4A90D9;">Abdullah Alsarmini</span></p>
+    </footer>
+</html>

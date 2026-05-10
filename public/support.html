@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>الدعم الفني - SWAP</title>
+    <link rel="icon" href="SWAP.jpg" type="image/jpeg">
+    <link rel="stylesheet" href="styles/main.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        function getUser() {
+            return sessionStorage.getItem('swap_token') ? true : false;
+        }
+        
+        async function goHome() {
+            if (getUser()) {
+                window.location.href = 'dashboard.html';
+            } else {
+                window.location.href = '../index.html';
+            }
+        }
+    </script>
+</head>
+<body>
+    <div class="app">
+        <header class="header">
+            <div class="header-content">
+                <h1 class="logo">SWAP</h1>
+                <nav class="nav">
+                    <button onclick="goHome()">الرئيسية</button>
+                    <button onclick="window.location.href='support.html'" class="active">الدعم الفني</button>
+                </nav>
+            </div>
+        </header>
+        
+        <main class="main">
+            <div class="support-card">
+                <h2>الدعم الفني</h2>
+                
+                <div class="info-section">
+                    <h3>عن الموقع</h3>
+                    <p>موقع تبديل الفئات الجامعية هو منصة إلكترونية تتيح للطلاب الجامعيين تبديل فئات العملي فيما بينهم بسهولة وأمان.</p>
+                    <p>المشكلة التي يحلها الموقع:</p>
+                    <ul>
+                        <li>الجامعة تنزل فئات العملي للطلاب حسب الترتيب الأبجدي</li>
+                        <li>يسمح للطلاب بالتبديل بين الفئات بشرط وجود بديل</li>
+                        <li>دعم التبديل الثنائي والثلاثي</li>
+                    </ul>
+                </div>
+                
+                <div class="info-section">
+                    <h3>مميزات الموقع</h3>
+                    <ul>
+                        <li>نظام تسجيل دخول وأشتراك آمن</li>
+                        <li>طلبات تبديل للفئات</li>
+                        <li>تطابق تلقائي بين الطلاب</li>
+                        <li>جداول منفصلة لكل سنة دراسية</li>
+                        <li>ترتيب الأقدم أولاً</li>
+                        <li>صفحات شخصية للتواصل</li>
+                        <li>تصميم متجاوب مع جميع الأجهزة</li>
+                    </ul>
+                </div>
+                
+<div class="info-section">
+                     <h3>معلومات المطور</h3>
+                    <div class="contact-row">
+                        <span>الاسم:</span>
+                        <strong>عبدالله السرميني</strong>
+                    </div>
+<div class="contact-row">
+                         <span>البريد الإلكتروني:</span>
+                         <a href="mailto:alsarmini7@gmail.com">alsarmini7@gmail.com</a>
+                     </div>
+                     <div class="contact-row">
+                         <span>فيسبوك:</span>
+                         <a href="https://www.facebook.com/share/1GJmWnm7Ky/" target="_blank">Abdullah Alsarmini</a>
+                     </div>
+                </div>
+                
+                <div class="info-section">
+                    <h3>للدعم والإيجاد</h3>
+                    <p>لأي استفسار أو مشكلة تقنية، يرجى التواصل معنا عبر البريد الإلكتروني.</p>
+                    <a href="mailto:alsarmini7@gmail.com" class="btn-primary">تواصل معنا</a>
+                </div>
+            </div>
+        </main>
+        
+<footer class="site-footer">
+             <p>تم تطوير الموقع بواسطة <a href="https://www.facebook.com/share/1GJmWnm7Ky/" target="_blank" style="color: #4A90D9; text-decoration: none;">Abdullah Alsarmini</a></p>
+         </footer>
+    </div>
+</body>
+</html>

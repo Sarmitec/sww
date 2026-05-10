@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>لوحة المالك - SWAP</title>
+    <link rel="stylesheet" href="../control/styles/main.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="js/api.js"></script>
+</head>
+<body>
+    <div id="root"></div>
+    
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+        
+        function OwnerPanel() {
+            const [user, setUser] = useState(null);
+            const [loading, setLoading] = useState(true);
+            const [selectedYear, setSelectedYear] = useState('all');
+            const [activeTab, setActiveTab] = useState('dashboard');
+            const [stats, setStats] = useState(null);
+            const [users, setUsers] = useState([]);
+            const [requests, setRequests] = useState([]);
+            const [logs, setLogs] = useState([]);
+            const [searchTerm, setSearchTerm] = useState('');
+            const [message, setMessage] = useState('');
+            
+            // Create user form
+            const [newUser, setNewUser] = useState({
+                name: '', university_id: '', year: '', email: '', password: '', confirm_password: '', role: 'student'
+            });
+            const [createError, setCreateError] = useState('');
+            const [createSuccess, setCreateSuccess] = useState('');
+            const [creating, setCreating] = useState(false);
+            
+            useEffect(() => {
+                checkAuth();
+            }, []);
+            
+            useEffect(() => {
+                if (user) {
+                    loadData();
+                }
+            }, [user, selectedYear]);
+            
+            const checkAuth = async () => {
+                try {
+                    const result = await window.API.getSession();
+                    if (!result || result.role !== 'owner') {
+                        window.location.href = '/SWAP/index.html';
+                    } else {
+                        setUser(result);
+                    }
+                } catch (err) {
+                    window.location.href = '/SWAP/index.html';
+                }
+                setLoading(false);
+            };
+            
+            const loadData = async () => {
+                await Promise.all([
+                    loadStats(),
+                    loadUsers(),
+                    loadRequests(),
+                    loadLogs()
+                ]);
+            };
+            
+            const loadStats = async () => {
+                try {
+                    const year = selectedYear === 'all' ? null : parseInt(selectedYear);
+                    const res = await window.API.getOwnerStats(year);
+                    if (res.success) setStats(res.stats);
+                } catch (e) { }
+            };
+            
+            const loadUsers = async () => {
+                try {
+                    const year = selectedYear === 'all' ? null : parseInt(selectedYear);
+                    console.log('Loading users for year:', year, 'selectedYear:', selectedYear, 'type:', typeof selectedYear);
+                    const res = await window.API.getOwnerUsers(year);
+                    console.log('Users response:', res, 'users count:', res.users ? res.users.length : 0);
+                    if (res.success) setUsers(res.users);
+                } catch (e) { console.error('Load users error:', e); }
+            };
+            
+            const loadRequests = async () => {
+                try {
+                    const year = selectedYear === 'all' ? null : parseInt(selectedYear);
+                    const res = await window.API.getOwnerRequests(year);
+                    if (res.success) setRequests(res.requests);
+                } catch (e) { }
+            };
+            
+            const loadLogs = async () => {
+                try {
+                    const year = selectedYear === 'all' ? null : parseInt(selectedYear);
+                    const res = await window.API.getOwnerLogs(year, 100);
+                    if (res.success) setLogs(res.logs);
+                } catch (e) { }
+            };
+            
+            const handleRoleChange = async (userId, newRole) => {
+                try {
+                    const res = await window.API.updateOwnerUserRole(userId, newRole);
+                    if (res.success) {
+                        setMessage('تم تحديث الدور بنجاح');
+                        loadUsers();
+                    } else {
+                        setMessage(res.message || 'خطأ');
+                    }
+                } catch (e) {
+                    setMessage('خطأ في الاتصال');
+                }
+            };
+            
+            const handleDeleteUser = async (userId) => {
+                if (!confirm('هل أنت متأكد من حذف هذا المستخدم؟')) return;
+                try {
+                    const res = await window.API.deleteOwnerUser(userId);
+                    if (res.success) {
+                        setMessage('تم حذف المستخدم');
+                        loadUsers();
+                    } else {
+                        setMessage(res.message);
+                    }
+                } catch (e) { }
+            };
+            
+            const handleUpdateRequest = async (reqId, status) => {
+                try {
+                    const res = await window.API.updateOwnerRequest(reqId, status);
+                    if (res.success) {
+                        setMessage('تم تحديث الحالة');
+                        loadRequests();
+                    }
+                } catch (e) { }
+            };
+            
+            const handleDeleteRequest = async (reqId) => {
+                if (!confirm('هل أنت متأكد من حذف هذا الطلب؟')) return;
+                try {
+                    const res = await window.API.deleteOwnerRequest(reqId);
+                    if (res.success) {
+                        setMessage('تم الحذف');
+                        loadRequests();
+                    }
+                } catch (e) { }
+            };
+            
+            const handleCreateUser = async (e) => {
+                e.preventDefault();
+                setCreateError('');
+                setCreateSuccess('');
+                setCreating(true);
+                try {
+                    const res = await window.API.createOwnerUser(newUser);
+                    if (res.success) {
+                        setCreateSuccess('تم إنشاء المستخدم بنجاح');
+                        setNewUser({ name: '', university_id: '', year: '', email: '', password: '', confirm_password: '', role: 'student' });
+                        loadUsers();
+                    } else {
+                        setCreateError(res.message || 'خطأ في الإنشاء');
+                    }
+                } catch (e) {
+                    setCreateError('خطأ في الاتصال');
+                }
+                setCreating(false);
+            };
+            
+            const handleNewUserChange = (e) => {
+                const { name, value } = e.target;
+                setNewUser(prev => ({ ...prev, [name]: value }));
+            };
+            
+            const logout = async () => {
+                await window.API.clearSession();
+                await window.API.logout();
+                window.location.href = '/SWAP/index.html';
+            };
+            
+            const filteredUsers = users.filter(u => 
+                u.name.includes(searchTerm) || 
+                u.university_id.includes(searchTerm)
+            );
+            
+            const filteredRequests = requests.filter(r => 
+                r.name.includes(searchTerm)
+            );
+            
+            if (loading) {
+                return (
+                    <div className="admin-loading">
+                        <div className="spinner"></div>
+                        <p>جاري التحميل...</p>
+                    </div>
+                );
+            }
+            
+            return (
+                <div className="admin-panel">
+                    <aside className="admin-sidebar">
+                        <div className="admin-logo">
+                            <span>👑</span> لوحة المالك
+                        </div>
+                        <nav className="admin-nav">
+                            <button 
+                                className={activeTab === 'dashboard' ? 'active' : ''}
+                                onClick={() => setActiveTab('dashboard')}
+                            >
+                                📊 الإحصائيات
+                            </button>
+                            <button 
+                                className={activeTab === 'users' ? 'active' : ''}
+                                onClick={() => setActiveTab('users')}
+                            >
+                                👥 المستخدمين
+                            </button>
+                            <button 
+                                className={activeTab === 'requests' ? 'active' : ''}
+                                onClick={() => setActiveTab('requests')}
+                            >
+                                🔄 الطلبات
+                            </button>
+                            <button 
+                                className={activeTab === 'logs' ? 'active' : ''}
+                                onClick={() => setActiveTab('logs')}
+                            >
+                                📋 السجلات
+                            </button>
+                            <button 
+                                className="logout-btn"
+                                onClick={logout}
+                            >
+                                🚪 خروج
+                            </button>
+                        </nav>
+                    </aside>
+                    
+                    <main className="admin-main">
+                        <header className="admin-header">
+                            <div className="year-filter">
+                                <label>السنة الدراسية:</label>
+                                <select 
+                                    value={selectedYear} 
+                                    onChange={(e) => setSelectedYear(e.target.value)}
+                                >
+                                    <option value="all">كل السنوات</option>
+                                    <option value="1">السنة الأولى</option>
+                                    <option value="2">السنة الثانية</option>
+                                    <option value="3">السنة الثالثة</option>
+                                    <option value="4">السنة الرابعة</option>
+                                    <option value="5">السنة الخامسة</option>
+                                </select>
+                            </div>
+                            <div className="admin-user">
+                                مرحباً، {user?.name}
+                            </div>
+                        </header>
+                        
+                        {message && (
+                            <div className="admin-message">{message}</div>
+                        )}
+                        
+                        {activeTab === 'dashboard' && stats && (
+                            <div className="admin-content">
+                                <h2>📊 الإحصائيات</h2>
+                                <div className="stats-grid">
+                                    <div className="stat-card total">
+                                        <div className="stat-icon">👥</div>
+                                        <div className="stat-value">{stats.totalStudents}</div>
+                                        <div className="stat-label">إجمالي الطلاب</div>
+                                    </div>
+                                    <div className="stat-card">
+                                        <div className="stat-icon">📝</div>
+                                        <div className="stat-value">{stats.totalRequests}</div>
+                                        <div className="stat-label">إجمالي الطلبات</div>
+                                    </div>
+                                    <div className="stat-card pending">
+                                        <div className="stat-icon">⏳</div>
+                                        <div className="stat-value">{stats.pendingRequests}</div>
+                                        <div className="stat-label">قيد الانتظار</div>
+                                    </div>
+                                    <div className="stat-card matched">
+                                        <div className="stat-icon">✓</div>
+                                        <div className="stat-value">{stats.matchedRequests}</div>
+                                        <div className="stat-label">تم التطابق</div>
+                                    </div>
+                                </div>
+                                
+                                <div className="stats-by-year">
+                                    <h3>📈 الإحصائيات حسب السنة</h3>
+                                    <div className="year-stats">
+                                        {[1,2,3,4,5].map(y => (
+                                            <div key={y} className="year-stat">
+                                                <span className="year-name">{getYearName(y)}</span>
+                                                <div className="year-bars">
+                                                    <div className="bar-group">
+                                                        <span className="bar-label">طلاب</span>
+                                                        <div className="bar">
+                                                            <div className="bar-fill students" style={{width: `${stats.byYear[y]?.students ? stats.byYear[y].students / stats.totalStudents * 100 : 0}%`}}></div>
+                                                        </div>
+                                                        <span className="bar-value">{stats.byYear[y]?.students || 0}</span>
+                                                    </div>
+                                                    <div className="bar-group">
+                                                        <span className="bar-label">طلبات</span>
+                                                        <div className="bar">
+                                                            <div className="bar-fill requests" style={{width: `${stats.byYear[y]?.requests ? stats.byYear[y].requests / stats.totalRequests * 100 : 0}%`}}></div>
+                                                        </div>
+                                                        <span className="bar-value">{stats.byYear[y]?.requests || 0}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                        
+                        {activeTab === 'users' && (
+                            <div className="admin-content">
+                                <h2>👥 إدارة المستخدمين</h2>
+                                
+                                {/* Create User Form */}
+                                <div className="card" style={{background:'#f9f9f9', padding:'1rem', borderRadius:'8px', marginBottom:'1.5rem'}}>
+                                    <h4>إنشاء مستخدم جديد</h4>
+                                    <form onSubmit={handleCreateUser} style={{display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(200px,1fr))', gap:'0.75rem', marginTop:'0.75rem'}}>
+                                        <input type="text" name="name" placeholder="الاسم الثلاثي" value={newUser.name} onChange={handleNewUserChange} required style={{padding:'0.5rem', border:'1px solid #ddd', borderRadius:'4px'}} />
+                                        <input type="text" name="university_id" placeholder="الرقم الجامعي" value={newUser.university_id} onChange={handleNewUserChange} required style={{padding:'0.5rem', border:'1px solid #ddd', borderRadius:'4px'}} />
+                                        <input type="number" name="year" placeholder="السنة (1-5)" min="1" max="5" value={newUser.year} onChange={handleNewUserChange} required style={{padding:'0.5rem', border:'1px solid #ddd', borderRadius:'4px'}} />
+                                        <input type="email" name="email" placeholder="البريد الإلكتروني" value={newUser.email} onChange={handleNewUserChange} required style={{padding:'0.5rem', border:'1px solid #ddd', borderRadius:'4px'}} />
+                                        <input type="password" name="password" placeholder="كلمة المرور" value={newUser.password} onChange={handleNewUserChange} required style={{padding:'0.5rem', border:'1px solid #ddd', borderRadius:'4px'}} />
+                                        <input type="password" name="confirm_password" placeholder="تأكيد كلمة المرور" value={newUser.confirm_password} onChange={handleNewUserChange} required style={{padding:'0.5rem', border:'1px solid #ddd', borderRadius:'4px'}} />
+                                        <select name="role" value={newUser.role} onChange={handleNewUserChange} style={{padding:'0.5rem', border:'1px solid #ddd', borderRadius:'4px'}}>
+                                            <option value="student">طالب</option>
+                                            <option value="admin">مدير</option>
+                                            <option value="owner">مالك</option>
+                                        </select>
+                                        <button type="submit" className="btn-primary" disabled={creating} style={{gridColumn:'1 / -1', padding:'0.75rem'}}>
+                                            {creating ? 'جاري الإنشاء...' : 'إنشاء مستخدم'}
+                                        </button>
+                                        {createError && <p style={{color:'red', gridColumn:'1 / -1'}}>{createError}</p>}
+                                        {createSuccess && <p style={{color:'green', gridColumn:'1 / -1'}}>{createSuccess}</p>}
+                                    </form>
+                                </div>
+                                
+                                <div className="search-box">
+                                    <input 
+                                        type="text" 
+                                        placeholder="بحث بالاسم أو الرقم الجامعي..."
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                    />
+                                </div>
+                                <div className="table-container">
+                                    <table className="admin-table">
+                                        <thead>
+                                            <tr>
+                                                <th>#</th>
+                                                <th>الاسم</th>
+                                                <th>الرقم الجامعي</th>
+                                                <th>السنة</th>
+                                                <th>البريد</th>
+                                                <th>الدور</th>
+                                                <th>إجراءات</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {filteredUsers.map((u, i) => (
+                                                <tr key={u.id}>
+                                                    <td>{i + 1}</td>
+                                                    <td>{u.name}</td>
+                                                    <td>{u.university_id}</td>
+                                                    <td>{getYearName(u.year)}</td>
+                                                    <td>{u.email}</td>
+                                                    <td>
+                                                        <select value={u.role} onChange={(e) => handleRoleChange(u.id, e.target.value)}>
+                                                            <option value="student">طالب</option>
+                                                            <option value="admin">مدير</option>
+                                                            <option value="owner">مالك</option>
+                                                        </select>
+                                                    </td>
+                                                    <td>
+                                                        <button className="btn-delete" onClick={() => handleDeleteUser(u.id)}>🗑️ حذف</button>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                    {filteredUsers.length === 0 && (
+                                        <div className="empty-state">لا يوجد مستخدمين</div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                        
+                        {activeTab === 'requests' && (
+                            <div className="admin-content">
+                                <h2>🔄 إدارة الطلبات</h2>
+                                <div className="search-box">
+                                    <input 
+                                        type="text" 
+                                        placeholder="بحث بالاسم..."
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                    />
+                                </div>
+                                <div className="requests-grid">
+                                    {filteredRequests.map(r => (
+                                        <div key={r.id} className="request-card-admin">
+                                            <div className="request-header">
+                                                <span className={`status-badge ${r.status}`}>{getStatusName(r.status)}</span>
+                                                <span className="request-date">{r.request_date}</span>
+                                            </div>
+                                            <div className="request-student">
+                                                <strong>{r.name}</strong>
+                                                <span>{r.university_id}</span>
+                                            </div>
+                                            <div className="request-sections">
+                                                <span className="current">{r.current_section}</span>
+                                                <span className="arrow">⇄</span>
+                                                <span className="desired">{r.desired_section}</span>
+                                            </div>
+                                            <div className="request-actions">
+                                                {r.status === 'pending' && (
+                                                    <button 
+                                                        className="btn-match"
+                                                        onClick={() => handleUpdateRequest(r.id, 'matched')}
+                                                    >
+                                                        ✓ جعل متطابق
+                                                    </button>
+                                                )}
+                                                <button 
+                                                    className="btn-delete"
+                                                    onClick={() => handleDeleteRequest(r.id)}
+                                                >
+                                                    🗑️ حذف
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                    {filteredRequests.length === 0 && (
+                                        <div className="empty-state">لا يوجد طلبات</div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                        
+                        {activeTab === 'logs' && (
+                            <div className="admin-content">
+                                <h2>📋 سجلات النشاط</h2>
+                                <div className="logs-container">
+                                    {logs.map((log, i) => (
+                                        <div key={i} className="log-item">
+                                            <span className="log-time">{log.created_at}</span>
+                                            <span className="log-action">{log.action}</span>
+                                            <span className="log-details">{JSON.stringify(log.details)}</span>
+                                        </div>
+                                    ))}
+                                    {logs.length === 0 && (
+                                        <div className="empty-state">لا يوجد سجلات</div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                    </main>
+                </div>
+            );
+        }
+        
+        function getYearName(year) {
+            const names = ['', 'الأولى', 'الثانية', 'الثالثة', 'الرابعة', 'الخامسة'];
+            return names[year] || year;
+        }
+        
+        function getStatusName(status) {
+            const names = { 
+                pending: 'قيد الانتظار', 
+                matched: 'تم التطابق', 
+                completed: 'مكتمل' 
+            };
+            return names[status] || status;
+        }
+        
+        ReactDOM.render(<OwnerPanel />, document.getElementById('root'));
+    </script>
+</body>
+</html>
